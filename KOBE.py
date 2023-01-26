@@ -1,3 +1,13 @@
+import os
+import time
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from torch.autograd import Variable
+from tqdm import tqdm_notebook
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.model_selection import train_test_split  
+
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -83,13 +93,13 @@ class BERTDataset(Dataset):
         # print(self.labels)
 
     def __getitem__(self, i):
-        return (self.sentences[i] + (self.labels[i], ))
+        return ([self.sentences[i]] + [(self.labels[i])])
 
     def __len__(self):
         return (len(self.labels))
 
 max_len = 64
-batch_size = 64
+batch_size = 1
 warmup_ratio = 0.1
 num_epochs = 5
 max_grad_norm = 1
@@ -99,43 +109,199 @@ learning_rate =  5e-5
 data_train = BERTDataset(dataset_train, train_num, tok, max_len, True, False)
 data_test = BERTDataset(dataset_test, test_num, tok, max_len, True, False)
 
+train_dataloader = torch.utils.data.DataLoader(data_train, batch_size=batch_size, num_workers=0)
+test_dataloader = torch.utils.data.DataLoader(data_test, batch_size=batch_size, num_workers=0)
 
-print(data_train)
+# print(data_train.__getitem__(1))
+
+
 
 ############################################################################
-# data_train = BERTDataset(dataset_train, 0, 1, tok, max_len, True, False)
-# data_test = BERTDataset(dataset_test, 0, 1, tok, max_len, True, False)
+class LSTM(nn.Module):
+    def __init__(self, num_classes, input_size, hidden_size, num_layers, seq_length):
+        super(LSTM, self).__init__()
+        self.num_classes = num_classes
+        self.num_layers = num_layers
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.seq_length = seq_length
 
-# train_dataloader = torch.utils.data.DataLoader(data_train, batch_size=batch_size, num_workers=5)
-# test_dataloader = torch.utils.data.DataLoader(data_test, batch_size=batch_size, num_workers=5)
+        self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size,
+                          num_layers=num_layers, batch_first=True)
+        self.fc_1 = nn.Linear(hidden_size, 128)
+        self.fc = nn.Linear(128, hidden_size)
 
-# class BERTClassifier(nn.Module):
-#     def __init__(self,
-#                  bert,
-#                  hidden_size = 768,
-#                  num_classes=2,
-#                  dr_rate=None,
-#                  params=None):
-#         super(BERTClassifier, self).__init__()
-#         self.bert = bert
-#         self.dr_rate = dr_rate
-                 
-#         self.classifier = nn.Linear(hidden_size , num_classes)
-#         if dr_rate:
-#             self.dropout = nn.Dropout(p=dr_rate)
+        self.relu = nn.ReLU()
     
-#     def gen_attention_mask(self, token_ids, valid_length):
-#         attention_mask = torch.zeros_like(token_ids)
-#         for i, v in enumerate(valid_length):
-#             attention_mask[i][:v] = 1
-#         return attention_mask.float()
-
-#     def forward(self, token_ids, valid_length, segment_ids):
-#         attention_mask = self.gen_attention_mask(token_ids, valid_length)
+    def forward(self,x):
+        h_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size)) 
+        c_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size))
         
-#         _, pooler = self.bert(input_ids = token_ids, token_type_ids = segment_ids.long(), attention_mask = attention_mask.float().to(token_ids.device))
-#         if self.dr_rate:
-#             out = self.dropout(pooler)
-#         else:
-#             out = pooler
-#         return self.classifier(out)
+        output, (hn, cn) = self.lstm(x, (h_0, c_0))
+        # hn = hn.view(-1, self.hidden_size) 
+        out = self.relu(hn)
+        out = self.fc_1(out) 
+        out = self.relu(out)
+        out = self.fc(out)
+        # print(out.size())
+        return out[63]
+
+class BERT(nn.Module):
+    def __init__(self,
+                 bert,
+                 hidden_size = 768,
+                 num_classes=2,
+                 dr_rate=None,
+                 params=None):
+        super(BERT, self).__init__()
+        self.bert = bert
+        self.dr_rate = dr_rate
+                 
+        # self.classifier = nn.Linear(hidden_size , num_classes)
+        if dr_rate:
+            self.dropout = nn.Dropout(p=dr_rate)
+    
+    def gen_attention_mask(self, token_ids, valid_length):
+        attention_mask = torch.zeros_like(token_ids)
+        for i, v in enumerate(valid_length):
+            attention_mask[i][:v] = 1
+        return attention_mask.float()
+
+    def forward(self, token_ids, valid_length, segment_ids):
+        attention_mask = self.gen_attention_mask(token_ids, valid_length)
+        
+        _, pooler = self.bert(input_ids = token_ids, token_type_ids = segment_ids.long(), attention_mask = attention_mask.float().to(token_ids.device))
+        if self.dr_rate:
+            out = self.dropout(pooler)
+        else:
+            out = pooler
+        return out
+
+# test1 = torch.Tensor(data_train[0][0][0])
+# test2 = data_train.__getitem__(0)[0][1]
+# print(test2)
+# test3 = torch.Tensor(data_train[0][0][2])
+    
+# pooler2 = np.array(pooler).to(device)
+# print(pooler2.size())
+# out2 = LSTM(num_classes = 1, input_size = 1, hidden_size = 2048, num_layers = 64, seq_length = 768).to(device)
+
+# out2.forward(pooler)
+
+# out.forward(token_ids, valid_length, segment_ids)
+# print(out)
+
+########################################################################
+
+class LSBERT(nn.Module):
+    def __init__(self, hidden_size, num_layers):
+        super(LSBERT, self).__init__()
+        self.bert = BERT(bertmodel, dr_rate=0.5).to(device)
+        self.f_lstm = LSTM(num_classes = 1, input_size = 768, hidden_size = 2048, num_layers = 64, seq_length = 768)
+        self.num_classes = 4
+        self.num_layers = num_layers
+        self.hidden_size = hidden_size
+        self.fc_size = 768
+        # self.lstm = nn.LSTM(input_size = input_size, hidden_size = hidden_size, num_layers = num_layers, batch_first = First)
+        # self.fc_1 = nn.Linear(hidden_size, 128)
+        # self.fc = nn.Linear(128, num_classes)
+        # self.hidden_classifier = nn.Linear()
+        # self.classifier = nn.Linear(hidden_size, self.num_classes)
+        self.month_classifier = nn.Linear(self.fc_size, 12)
+        self.month_fc = nn.Linear(hidden_size, self.fc_size)
+        self.day_classifier = nn.Linear(self.fc_size, 30)
+        self.day_fc = nn.Linear(hidden_size, self.fc_size)
+        self.hour_classifier = nn.Linear(self.fc_size, 24)
+        self.hour_fc = nn.Linear(hidden_size, self.fc_size)
+        self.min_classifier = nn.Linear(self.fc_size, 12)
+        self.min_fc = nn.Linear(hidden_size, self.fc_size)
+
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        PAD_pooler = torch.zeros(1, 768, dtype = torch.float32)
+        pooler = []
+        seq_len = 0
+        for token_ids, valid_length, segment_ids in x:
+            seq_len += 1
+            token_ids = token_ids.long().to(device)
+            segment_ids = segment_ids.long().to(device)
+            valid_length= valid_length
+            pooler += self.bert(token_ids, valid_length, segment_ids).tolist()
+            # print(pooler.type())
+        for _ in range(64 - seq_len):
+            pooler += PAD_pooler
+        # print(pooler)
+        pooler = torch.tensor(pooler, dtype=torch.float32)
+        # out = self.bert(input_ids = x[0], valid_lengh = x[1], segment_ids = x[2])
+        pooler = pooler.reshape(1, 64, 768)
+
+        # h_0 = Variable(torch.zeros(self.num_layers, pooler.size(0), self.hidden_size))  
+        # c_0 = Variable(torch.zeros(self.num_layers, pooler.size(0), self.hidden_size)) 
+
+        out = self.f_lstm(pooler)
+        print(out.size())
+
+        # out = self.classifier(out)
+
+        # out = self.classifier(out)
+        # out = self.relu(out)
+        # print(out)
+        m_out = self.month_fc(out)
+        m_out = self.relu(m_out)
+        m_out = self.month_classifier(m_out)
+        d_out = self.day_fc(out)
+        d_out = self.relu(d_out)
+        d_out = self.day_classifier(d_out)
+        h_out = self.hour_fc(out)
+        h_out = self.relu(h_out)
+        h_out = self.hour_classifier(h_out)
+        mi_out = self.min_fc(out)
+        mi_out = self.relu(mi_out)
+        mi_out = self.min_classifier(mi_out)
+        schedule_out = [m_out, d_out, h_out, mi_out]
+        return schedule_out
+
+##############################################################################
+
+# out = BERT(bertmodel, dr_rate=0.5).to(device)
+# out2 = LSTM(num_classes = 1, input_size = 768, hidden_size = 2048, num_layers = 64, seq_length = 768)
+out3 = LSBERT(hidden_size = 2048, num_layers=64)
+
+for batch_id, (x, label) in tqdm(enumerate(train_dataloader), total=len(train_dataloader)):
+    # pooler2 = torch.zeros(1,768, dtype = torch.float32)
+    # pooler = []
+    # seq_len = 0
+    # for token_ids, valid_length, segment_ids in x:
+    #     seq_len += 1
+    #     token_ids = token_ids.long().to(device)
+    #     segment_ids = segment_ids.long().to(device)
+    #     valid_length= valid_length
+    #     pooler += out(token_ids, valid_length, segment_ids).tolist()
+    # for _ in range(64 - seq_len):
+    #     pooler += pooler2
+    # print(len(pooler))
+    # pooler = torch.tensor(pooler, dtype=torch.float32)
+    
+    # pooler = pooler.reshape(1,64,768)
+    # print(pooler)
+    # output = out2.forward(pooler)
+
+    output = out3(x)
+    print(output)
+
+
+num_epochs = 1000 
+learning_rate = 0.0001 
+input_size = 64
+hidden_size = 768
+num_layers = 1 
+num_classes = 4
+
+# model = LSBERT(num_classes, input_size, hidden_size, num_layers, 64) 
+
+# criterion = torch.nn.MSELoss()    
+# optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) 
+
+
+
