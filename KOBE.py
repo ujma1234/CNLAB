@@ -67,9 +67,6 @@ class BERTDataset(Dataset):
 
         # Make Embedding with Tokenizer
         self.sentences = [[transform([j][0]) for j in dataset[i][1:]] for i in range(data_num)]
-
-        # print(self.sentences)
-
         # Make labels 
         npzero = np.int32(0)
         label_list = [[npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero]]
@@ -112,11 +109,8 @@ data_test = BERTDataset(dataset_test, test_num, tok, max_len, True, False)
 train_dataloader = torch.utils.data.DataLoader(data_train, batch_size=batch_size, num_workers=0)
 test_dataloader = torch.utils.data.DataLoader(data_test, batch_size=batch_size, num_workers=0)
 
-# print(data_train.__getitem__(1))
-
-
-
 ############################################################################
+
 class LSTM(nn.Module):
     def __init__(self, num_classes, input_size, hidden_size, num_layers, seq_length):
         super(LSTM, self).__init__()
@@ -128,8 +122,8 @@ class LSTM(nn.Module):
 
         self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size,
                           num_layers=num_layers, batch_first=True)
-        self.fc_1 = nn.Linear(hidden_size, 128)
-        self.fc = nn.Linear(128, hidden_size)
+        self.fc_1 = nn.Linear(hidden_size * 64, 2048)
+        self.fc = nn.Linear(2048, hidden_size)
 
         self.relu = nn.ReLU()
     
@@ -138,13 +132,12 @@ class LSTM(nn.Module):
         c_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size))
         
         output, (hn, cn) = self.lstm(x, (h_0, c_0))
-        # hn = hn.view(-1, self.hidden_size) 
+        hn = hn.view(-1)
         out = self.relu(hn)
         out = self.fc_1(out) 
         out = self.relu(out)
         out = self.fc(out)
-        # print(out.size())
-        return out[63]
+        return out
 
 class BERT(nn.Module):
     def __init__(self,
@@ -156,8 +149,7 @@ class BERT(nn.Module):
         super(BERT, self).__init__()
         self.bert = bert
         self.dr_rate = dr_rate
-                 
-        # self.classifier = nn.Linear(hidden_size , num_classes)
+
         if dr_rate:
             self.dropout = nn.Dropout(p=dr_rate)
     
@@ -177,36 +169,19 @@ class BERT(nn.Module):
             out = pooler
         return out
 
-# test1 = torch.Tensor(data_train[0][0][0])
-# test2 = data_train.__getitem__(0)[0][1]
-# print(test2)
-# test3 = torch.Tensor(data_train[0][0][2])
-    
-# pooler2 = np.array(pooler).to(device)
-# print(pooler2.size())
-# out2 = LSTM(num_classes = 1, input_size = 1, hidden_size = 2048, num_layers = 64, seq_length = 768).to(device)
-
-# out2.forward(pooler)
-
-# out.forward(token_ids, valid_length, segment_ids)
-# print(out)
-
 ########################################################################
 
 class LSBERT(nn.Module):
-    def __init__(self, hidden_size, num_layers):
+    ## hidden_size = 전달받는 은닉층의 크기, fc_size = 신경망 크기, num_layers = lstm_sell 크기
+    def __init__(self, hidden_size, fc_size, num_layers):
         super(LSBERT, self).__init__()
         self.bert = BERT(bertmodel, dr_rate=0.5).to(device)
-        self.f_lstm = LSTM(num_classes = 1, input_size = 768, hidden_size = 2048, num_layers = 64, seq_length = 768)
+        self.f_lstm = LSTM(num_classes = 1, input_size = 768, hidden_size = hidden_size, num_layers = num_layers, seq_length = 768)
         self.num_classes = 4
         self.num_layers = num_layers
         self.hidden_size = hidden_size
-        self.fc_size = 768
-        # self.lstm = nn.LSTM(input_size = input_size, hidden_size = hidden_size, num_layers = num_layers, batch_first = First)
-        # self.fc_1 = nn.Linear(hidden_size, 128)
-        # self.fc = nn.Linear(128, num_classes)
-        # self.hidden_classifier = nn.Linear()
-        # self.classifier = nn.Linear(hidden_size, self.num_classes)
+        self.fc_size = fc_size
+
         self.month_classifier = nn.Linear(self.fc_size, 12)
         self.month_fc = nn.Linear(hidden_size, self.fc_size)
         self.day_classifier = nn.Linear(self.fc_size, 30)
@@ -228,25 +203,15 @@ class LSBERT(nn.Module):
             segment_ids = segment_ids.long().to(device)
             valid_length= valid_length
             pooler += self.bert(token_ids, valid_length, segment_ids).tolist()
-            # print(pooler.type())
+
         for _ in range(64 - seq_len):
             pooler += PAD_pooler
-        # print(pooler)
         pooler = torch.tensor(pooler, dtype=torch.float32)
-        # out = self.bert(input_ids = x[0], valid_lengh = x[1], segment_ids = x[2])
         pooler = pooler.reshape(1, 64, 768)
-
-        # h_0 = Variable(torch.zeros(self.num_layers, pooler.size(0), self.hidden_size))  
-        # c_0 = Variable(torch.zeros(self.num_layers, pooler.size(0), self.hidden_size)) 
 
         out = self.f_lstm(pooler)
         print(out.size())
 
-        # out = self.classifier(out)
-
-        # out = self.classifier(out)
-        # out = self.relu(out)
-        # print(out)
         m_out = self.month_fc(out)
         m_out = self.relu(m_out)
         m_out = self.month_classifier(m_out)
@@ -264,9 +229,7 @@ class LSBERT(nn.Module):
 
 ##############################################################################
 
-# out = BERT(bertmodel, dr_rate=0.5).to(device)
-# out2 = LSTM(num_classes = 1, input_size = 768, hidden_size = 2048, num_layers = 64, seq_length = 768)
-out3 = LSBERT(hidden_size = 2048, num_layers=64)
+out3 = LSBERT(hidden_size = 768, num_layers=64, fc_size = 2048)
 
 for batch_id, (x, label) in tqdm(enumerate(train_dataloader), total=len(train_dataloader)):
     # pooler2 = torch.zeros(1,768, dtype = torch.float32)
