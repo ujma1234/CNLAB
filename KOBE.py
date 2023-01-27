@@ -111,7 +111,9 @@ data_test = BERTDataset(dataset_test, test_num, tok, max_len, True, False)
 train_dataloader = torch.utils.data.DataLoader(data_train, batch_size=batch_size, num_workers=0)
 test_dataloader = torch.utils.data.DataLoader(data_test, batch_size=batch_size, num_workers=0)
 
-model = ps_bertNlstm.LSBERT(hidden_size = 768, fc_size = 2048, num_layers=64, bertmodel = bertmodel)
+bertmodel = bertmodel.to(device)
+
+model = ps_bertNlstm.LSBERT(hidden_size = 768, fc_size = 2048, num_layers=64, bertmodel = bertmodel).to(device)
 
 for batch_id, (x, label) in tqdm(enumerate(train_dataloader), total=len(train_dataloader)):
     # label = torch.tensor(label)

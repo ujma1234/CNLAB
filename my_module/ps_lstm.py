@@ -2,6 +2,8 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 
+device = torch.device("cuda:0")
+
 class LSTM(nn.Module):
     def __init__(self, num_classes, input_size, hidden_size, num_layers, seq_length):
         super(LSTM, self).__init__()
@@ -19,8 +21,8 @@ class LSTM(nn.Module):
         self.relu = nn.ReLU()
     
     def forward(self,x, seq_num):
-        h_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size)) 
-        c_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size))
+        h_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size)).to(device)
+        c_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size)).to(device)
         
         output, (hn, cn) = self.lstm(x, (h_0, c_0))
         hn = hn[seq_num].view(-1)

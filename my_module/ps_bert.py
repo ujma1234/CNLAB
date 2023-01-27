@@ -1,6 +1,8 @@
 import torch
 from torch import nn
 
+device = torch.device("cuda:0")
+
 class BERT(nn.Module):
     def __init__(self,
                  bert,
@@ -24,7 +26,7 @@ class BERT(nn.Module):
     def forward(self, token_ids, valid_length, segment_ids):
         attention_mask = self.gen_attention_mask(token_ids, valid_length)
         
-        _, pooler = self.bert(input_ids = token_ids, token_type_ids = segment_ids.long(), attention_mask = attention_mask.float().to(token_ids.device))
+        _, pooler = self.bert(input_ids = token_ids, token_type_ids = segment_ids.long(), attention_mask = attention_mask.float())
         if self.dr_rate:
             out = self.dropout(pooler)
         else:

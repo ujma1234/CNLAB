@@ -10,7 +10,7 @@ class LSBERT(nn.Module):
     ## hidden_size = 전달받는 은닉층의 크기, fc_size = 신경망 크기, num_layers = lstm_sell 크기
     def __init__(self, hidden_size, fc_size, num_layers, bertmodel):
         super(LSBERT, self).__init__()
-        self.bert = ps_bert.BERT(bertmodel, dr_rate=0.5).to(device)
+        self.bert = ps_bert.BERT(bertmodel, dr_rate=0.5)
         self.f_lstm = ps_lstm.LSTM(num_classes = 1, input_size = 768, hidden_size = hidden_size, num_layers = num_layers, seq_length = 768)
         self.num_classes = 4
         self.num_layers = num_layers
@@ -36,15 +36,17 @@ class LSBERT(nn.Module):
             seq_len += 1
             token_ids = token_ids.long().to(device)
             segment_ids = segment_ids.long().to(device)
-            valid_length= valid_length
+            valid_length = valid_length.to(device)
             pooler += self.bert(token_ids, valid_length, segment_ids).tolist()
 
         for _ in range(64 - seq_len):
             pooler += PAD_pooler
-        pooler = torch.tensor(pooler, dtype=torch.float32)
+        pooler = torch.tensor(pooler, dtype=torch.float32).to(device)
         pooler = pooler.reshape(1, 64, 768)
 
-        out = self.f_lstm(pooler, seq_len)
+        seq_len = torch.tensor(seq_len).to(device)
+
+        out = self.f_lstm(pooler, seq_len).to(device)
         print(out.size())
 
         m_out = self.month_fc(out)
