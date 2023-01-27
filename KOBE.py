@@ -118,21 +118,21 @@ class LSTM(nn.Module):
         self.num_layers = num_layers
         self.input_size = input_size
         self.hidden_size = hidden_size
-        self.seq_length = seq_length
+        self.seq_lenght = seq_length
 
         self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size,
                           num_layers=num_layers, batch_first=True)
-        self.fc_1 = nn.Linear(hidden_size * 64, 2048)
+        self.fc_1 = nn.Linear(hidden_size, 2048)
         self.fc = nn.Linear(2048, hidden_size)
 
         self.relu = nn.ReLU()
     
-    def forward(self,x):
+    def forward(self,x, seq_num):
         h_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size)) 
         c_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size))
         
         output, (hn, cn) = self.lstm(x, (h_0, c_0))
-        hn = hn.view(-1)
+        hn = hn[seq_num].view(-1)
         out = self.relu(hn)
         out = self.fc_1(out) 
         out = self.relu(out)
@@ -209,7 +209,7 @@ class LSBERT(nn.Module):
         pooler = torch.tensor(pooler, dtype=torch.float32)
         pooler = pooler.reshape(1, 64, 768)
 
-        out = self.f_lstm(pooler)
+        out = self.f_lstm(pooler, seq_len)
         print(out.size())
 
         m_out = self.month_fc(out)
@@ -297,3 +297,15 @@ class LSBERT(nn.Module):
     # pooler = pooler.reshape(1,64,768)
     # print(pooler)
     # output = out2.forward(pooler)
+
+###################################################################################################
+
+# model = LSBERT(hidden_size = 768, num_layers=64, fc_size = 2048)
+
+# for batch_id, (x, label) in tqdm(enumerate(train_dataloader), total=len(train_dataloader)):
+#     # label = torch.tensor(label)
+#     # label = label.long().to(device)
+#     out = model(x)
+#     for i in out:
+#         out_date = torch.nn.functional.softmax(i)
+#         print(out_date)
