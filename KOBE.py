@@ -143,10 +143,6 @@ model = ps_bertNlstm.LSBERT(hidden_size = 768, fc_size = 2048, num_layers=64, be
 
 #                 loss
 
-
-
-
-
 #########################################################################################################################
 # Prepare optimizer and schedule (linear warmup and decay)
 no_decay = ['bias', 'LayerNorm.weight']
@@ -157,32 +153,66 @@ optimizer_grouped_parameters = [
 
 optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate)
 
-def make_loss(data, label):
+def make_loss_N_Backward(data, label):
     loss_fn = nn.CrossEntropyLoss()
-    loss = []
+    losses = []
     target = [label[0][0].reshape(1), label[0][1].reshape(1), label[0][2].reshape(1), label[0][3].reshape(1)]
     input = [data[0].reshape(1,12), data[1].reshape(1,31), data[2].reshape(1,24), data[3].reshape(1,12)]
     for i, j in zip(target, input) :
-        loss.append(loss_fn(j, i))
-        # print(loss_fn(j, i))
-
-    return loss.mean()
-
-
+        loss = loss_fn(j, i)
+        loss.backward(retain_graph=True)
+        losses.append(loss)
+    return losses
 
 t_total = len(train_dataloader) * num_epochs
 warmup_step = int(t_total * warmup_ratio)
 
 scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=warmup_step, num_training_steps=t_total)
 
-for batch_id, (x, label) in tqdm(enumerate(train_dataloader), total=len(train_dataloader)):
-    # label = torch.tensor(label)
-    # labels = torch.tensor(label)
-    predict = []
-    out = model(x)
-    print(out, predict)
-    loss = make_loss(out, label)
-    # loss.backward()
-    print(loss)
-    # torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+def calc_accuracy(X,Y):
+    pred = []
+    vals = []
+    indices = []
+    mon = X[0].reshape(1, 12)
+    day = X[1].reshape(1, 31)
+    hour = X[2].reshape(1, 24)
+    min = X[3].reshape(1, 12)
+    pred = [mon, day, hour, min]
+    for i, j in (torch.max(k, 1) for k in pred):
+        vals += i
+        indices += j
+    indices = torch.tensor(indices).to(device)
+    train_acc = (indices == Y).sum().data.cpu().numpy()/indices.size()[0]
+    return train_acc
+
+for e in range(num_epochs):
+    train_acc = 0.0
+    test_acc = 0.0
+    model.train()
+    for batch_id, (x, label) in tqdm(enumerate(train_dataloader), total=len(train_dataloader)):
+        # label = torch.tensor(label)
+        # labels = torch.tensor(label)
+        predict = []
+        out = model(x)
+        # print(out, predict)
+        loss = make_loss_N_Backward(out, label)
+        train_acc = calc_accuracy(out, label)
+        # print(loss)
+        # loss_mean = torch.mean(torch.stack(loss))
+        # loss.backward()
+        # # print(torch.mean(torch.stack(loss)))
+
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+        optimizer.step()
+        scheduler.step()
+        train_acc += calc_accuracy(out, label)
+        if batch_id % log_interval == 0:
+            print("epoch {} batch id {} loss {} train acc {}".format(e+1, batch_id+1, loss, train_acc / (batch_id+1)))
+        print("epoch {} train acc {}".format(e+1, train_acc / (batch_id+1)))
+    model.eval()
+    for batch_id, (x, label) in tqdm(enumerate(test_dataloader), total=len(test_dataloader)):
+        label = label.long().to(device)
+        out = model(x)
+        test_acc += calc_accuracy(out, label)
+    print("epoch {} test acc {}".format(e+1, test_acc / (batch_id+1)))
         
