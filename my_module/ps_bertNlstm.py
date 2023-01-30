@@ -30,6 +30,7 @@ class LSBERT(nn.Module):
 
     def forward(self, x):
         PAD_pooler = torch.zeros(1, 768, dtype = torch.float32)
+        schedule_out = []
         pooler = []
         seq_len = 0
         for token_ids, valid_length, segment_ids in x:
@@ -47,7 +48,7 @@ class LSBERT(nn.Module):
         seq_len = torch.tensor(seq_len).to(device)
 
         out = self.f_lstm(pooler, seq_len).to(device)
-        print(out.size())
+        # print(out.size())
 
         m_out = self.month_fc(out)
         m_out = self.relu(m_out)
@@ -61,5 +62,7 @@ class LSBERT(nn.Module):
         mi_out = self.min_fc(out)
         mi_out = self.relu(mi_out)
         mi_out = self.min_classifier(mi_out)
+
         schedule_out = [m_out, d_out, h_out, mi_out]
+        
         return schedule_out

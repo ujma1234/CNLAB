@@ -1,12 +1,12 @@
 import os
-import time
+import gc
 import pandas as pd
 import matplotlib.pyplot as plt
 
 from torch.autograd import Variable
 from tqdm import tqdm_notebook
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from sklearn.model_selection import train_test_split  
+from sklearn.model_selection import train_test_split
 
 import torch
 from torch import nn
@@ -70,24 +70,34 @@ class BERTDataset(Dataset):
         # Make Embedding with Tokenizer
         self.sentences = [[transform([j][0]) for j in dataset[i][1:]] for i in range(data_num)]
         # Make labels 
-        npzero = np.int32(0)
-        label_list = [[npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero]]
+        # npzero = np.int32(0)
+
+        # label_list = [[npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero]]
         
-        self.labels = [label_list] * data_num
+        self.labels = []
         for i in range(data_num):
-            label_list = [[npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero]]
+            # label_list = []
+            # label_list += torch.zeros(1, 12, dtype = torch.int32).to(device)
+            # label_list += torch.zeros(1, 31, dtype = torch.int32).to(device)
+            # label_list += torch.zeros(1, 24, dtype = torch.int32).to(device)
+            # label_list += torch.zeros(1, 12, dtype = torch.int32).to(device)
+
+            # label_list = [[npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero]]
             month = int(dataset[i][0][0][0])*10 + int(dataset[i][0][0][1])
             day = int(dataset[i][0][0][3])*10 + int(dataset[i][0][0][4])
             hour = int(dataset[i][0][0][6])*10 + int(dataset[i][0][0][7])
             min = int(dataset[i][0][0][9])*10 + int(dataset[i][0][0][10])
             min = int(min/5)
 
-            label_list[0][month-1] = np.int32(1)
-            label_list[1][day-1] = np.int32(1)
-            label_list[2][hour] = np.int32(1)
-            label_list[3][min] = np.int32(1)
+            label_list = torch.tensor([month, day, hour, min]).to(device)
+            # label_list[0][month-1] = np.int32(1)
+            # label_list[1][day-1] = np.int32(1)
+            # label_list[2][hour] = np.int32(1)
+            # label_list[3][min] = np.int32(1)
 
-            self.labels[i] = label_list
+            # print(label_list)
+
+            self.labels += [label_list]
             
         # print(self.labels)
 
@@ -115,10 +125,64 @@ bertmodel = bertmodel.to(device)
 
 model = ps_bertNlstm.LSBERT(hidden_size = 768, fc_size = 2048, num_layers=64, bertmodel = bertmodel).to(device)
 
+############################################################################################################################3
+
+# def train(device, epoch, model, optimizer, train_loader, save_step, save_ckpt_path, train_step=0):
+#     for e in range(num_epochs):
+#         train_acc = 0.0
+#         test_acc = 0.0
+#         losses = []
+#         train_start_index = train_step + 1 if train_step != 0 else 0
+#         total_train_step = len(train_loader)
+#         model.train()
+#         with tqdm(total = total_train_step, desc = f"Train({epoch})") as pbar:
+#             pbar.update(train_step)
+#             for batch_id, (x, label) in enumerate(train_loader, train_start_index):
+#                 optimizer.zero_grad()
+#                 outputs = model(x)
+
+#                 loss
+
+
+
+
+
+#########################################################################################################################
+# Prepare optimizer and schedule (linear warmup and decay)
+no_decay = ['bias', 'LayerNorm.weight']
+optimizer_grouped_parameters = [
+    {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
+    {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+]
+
+optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate)
+
+def make_loss(data, label):
+    loss_fn = nn.CrossEntropyLoss()
+    loss = []
+    target = [label[0][0].reshape(1), label[0][1].reshape(1), label[0][2].reshape(1), label[0][3].reshape(1)]
+    input = [data[0].reshape(1,12), data[1].reshape(1,31), data[2].reshape(1,24), data[3].reshape(1,12)]
+    for i, j in zip(target, input) :
+        loss.append(loss_fn(j, i))
+        # print(loss_fn(j, i))
+
+    return loss.mean()
+
+
+
+t_total = len(train_dataloader) * num_epochs
+warmup_step = int(t_total * warmup_ratio)
+
+scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=warmup_step, num_training_steps=t_total)
+
 for batch_id, (x, label) in tqdm(enumerate(train_dataloader), total=len(train_dataloader)):
     # label = torch.tensor(label)
-    # label = label.long().to(device)
+    # labels = torch.tensor(label)
+    predict = []
     out = model(x)
-    for i in out:
-        out_date = torch.nn.functional.softmax(i)
-        print(out_date)
+    print(out, predict)
+    loss = make_loss(out, label)
+    # loss.backward()
+    print(loss)
+    # torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+        

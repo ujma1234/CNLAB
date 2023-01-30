@@ -49,4 +49,4 @@ learning_rate =  5e-5
 data_train = BERTDataset(dataset_train, 0, 1, tok, max_len, True, False)
 data_test = BERTDataset(dataset_test, 0, 1, tok, max_len, True, False)
 
-print(data_train[1])
+print(data_train.labels[0].long())
