@@ -83,8 +83,8 @@ class BERTDataset(Dataset):
             # label_list += torch.zeros(1, 12, dtype = torch.int32).to(device)
 
             # label_list = [[npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero], [npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero,npzero]]
-            month = int(dataset[i][0][0][0])*10 + int(dataset[i][0][0][1])
-            day = int(dataset[i][0][0][3])*10 + int(dataset[i][0][0][4])
+            month = int(dataset[i][0][0][0])*10 + int(dataset[i][0][0][1]) - 1
+            day = int(dataset[i][0][0][3])*10 + int(dataset[i][0][0][4]) - 1
             hour = int(dataset[i][0][0][6])*10 + int(dataset[i][0][0][7])
             min = int(dataset[i][0][0][9])*10 + int(dataset[i][0][0][10])
             min = int(min/5)
@@ -144,6 +144,7 @@ model = ps_bertNlstm.LSBERT(hidden_size = 768, fc_size = 2048, num_layers=64, be
 #                 loss
 
 #########################################################################################################################
+
 # Prepare optimizer and schedule (linear warmup and decay)
 no_decay = ['bias', 'LayerNorm.weight']
 optimizer_grouped_parameters = [
@@ -161,7 +162,7 @@ def make_loss_N_Backward(data, label):
     for i, j in zip(target, input) :
         loss = loss_fn(j, i)
         loss.backward(retain_graph=True)
-        losses.append(loss)
+        losses.append(loss.tolist())
     return losses
 
 t_total = len(train_dataloader) * num_epochs
@@ -178,11 +179,15 @@ def calc_accuracy(X,Y):
     hour = X[2].reshape(1, 24)
     min = X[3].reshape(1, 12)
     pred = [mon, day, hour, min]
+    Y = Y[0]
+    # print(Y)
     for i, j in (torch.max(k, 1) for k in pred):
         vals += i
         indices += j
+        # print(j)
     indices = torch.tensor(indices).to(device)
-    train_acc = (indices == Y).sum().data.cpu().numpy()/indices.size()[0]
+    # print(indices.size()[0])
+    train_acc = (indices == label).sum().data.cpu().numpy()/indices.size()[0]
     return train_acc
 
 for e in range(num_epochs):
@@ -192,16 +197,16 @@ for e in range(num_epochs):
     for batch_id, (x, label) in tqdm(enumerate(train_dataloader), total=len(train_dataloader)):
         # label = torch.tensor(label)
         # labels = torch.tensor(label)
+        # print(batch_id)
         predict = []
         out = model(x)
         # print(out, predict)
         loss = make_loss_N_Backward(out, label)
-        train_acc = calc_accuracy(out, label)
+        # train_acc = calc_accuracy(out, label)
         # print(loss)
         # loss_mean = torch.mean(torch.stack(loss))
         # loss.backward()
         # # print(torch.mean(torch.stack(loss)))
-
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
         optimizer.step()
         scheduler.step()
