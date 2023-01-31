@@ -8,14 +8,18 @@ device = torch.device("cuda:0")
 
 class LSBERT(nn.Module):
     ## hidden_size = 전달받는 은닉층의 크기, fc_size = 신경망 크기, num_layers = lstm_sell 크기
-    def __init__(self, hidden_size, fc_size, num_layers, bertmodel):
+    def __init__(self, hidden_size, fc_size, num_layers, bertmodel, dr_rate):
         super(LSBERT, self).__init__()
-        self.bert = ps_bert.BERT(bertmodel, dr_rate=0.5)
-        self.f_lstm = ps_lstm.LSTM(num_classes = 1, input_size = 768, hidden_size = hidden_size, num_layers = num_layers, seq_length = 768)
+        self.bert = ps_bert.BERT(bertmodel, dr_rate=dr_rate[0])
+        self.f_lstm = ps_lstm.LSTM(num_classes = 1, input_size = 768, hidden_size = hidden_size, num_layers = num_layers, seq_length = 768, dr_rate = dr_rate[1])
         self.num_classes = 4
         self.num_layers = num_layers
         self.hidden_size = hidden_size
         self.fc_size = fc_size
+        self.dr_rate = dr_rate[2]
+
+        if self.dr_rate:
+            self.dropout = nn.Dropout(p=dr_rate[2])
 
         self.month_classifier = nn.Linear(self.fc_size, 12)
         self.month_fc = nn.Linear(hidden_size, self.fc_size)
@@ -49,18 +53,27 @@ class LSBERT(nn.Module):
 
         out = self.f_lstm(pooler, seq_len).to(device)
         # print(out.size())
+        if self.dr_rate:
+            out = self.dropout(out)
 
         m_out = self.month_fc(out)
         m_out = self.relu(m_out)
-        m_out = self.month_classifier(m_out)
         d_out = self.day_fc(out)
         d_out = self.relu(d_out)
-        d_out = self.day_classifier(d_out)
         h_out = self.hour_fc(out)
         h_out = self.relu(h_out)
-        h_out = self.hour_classifier(h_out)
         mi_out = self.min_fc(out)
         mi_out = self.relu(mi_out)
+
+        if self.dr_rate:
+            m_out = self.dropout(m_out)
+            d_out = self.dropout(d_out)
+            h_out = self.dropout(h_out)
+            mi_out = self.dropout(mi_out)
+
+        m_out = self.month_classifier(m_out)
+        d_out = self.day_classifier(d_out)
+        h_out = self.hour_classifier(h_out)
         mi_out = self.min_classifier(mi_out)
 
         schedule_out = [m_out, d_out, h_out, mi_out]
