@@ -28,6 +28,8 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 
 device = torch.device("cuda:0")
 
+checkpoint = torch.load(".cache/test.zip")
+
 bertmodel, vocab = get_pytorch_kobert_model(cachedir=".cache")
 test_file = ".cache/test_"
 file_num = 0
@@ -125,6 +127,8 @@ bertmodel = bertmodel.to(device)
 
 model = ps_bertNlstm.LSBERT(hidden_size = 768, fc_size = 2048, num_layers=64, bertmodel = bertmodel).to(device)
 
+model.load_state_dict(checkpoint['model_state_dict'])
+
 ############################################################################################################################3
 
 # def train(device, epoch, model, optimizer, train_loader, save_step, save_ckpt_path, train_step=0):
@@ -154,6 +158,8 @@ optimizer_grouped_parameters = [
 
 optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate)
 
+optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
 def make_loss_N_Backward(data, label):
     loss_fn = nn.CrossEntropyLoss()
     losses = []
@@ -169,6 +175,8 @@ t_total = len(train_dataloader) * num_epochs
 warmup_step = int(t_total * warmup_ratio)
 
 scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=warmup_step, num_training_steps=t_total)
+
+checkpoint = {'model_state_dict': model.state_dict(), 'optimizer_state_dict': optimizer.state_dict()}
 
 def calc_accuracy(X,Y):
     pred = []
@@ -221,3 +229,4 @@ for e in range(num_epochs):
         test_acc += calc_accuracy(out, label)
     print("epoch {} test acc {}".format(e+1, test_acc / (batch_id+1)))
         
+torch.save(checkpoint, '.cache/test.zip')
