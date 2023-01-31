@@ -2,7 +2,6 @@ import torch
 from torch import nn
 
 device = torch.device("cuda:0")
-
 class BERT(nn.Module):
     def __init__(self,
                  bert,
