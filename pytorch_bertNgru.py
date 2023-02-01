@@ -115,11 +115,11 @@ test_dataloader = torch.utils.data.DataLoader(data_test, batch_size=batch_size, 
 
 bertmodel = bertmodel.to(device)
 
-model = ps_bertNgru.GRUBERT(hidden_size = 768, fc_size = 2048, num_layers=64, bertmodel = bertmodel, dr_rate = dr_rates).to(device)
+model = ps_bertNgru.GRUBERT(hidden_size = 768, fc_size = 2048, num_layers=1, bertmodel = bertmodel, dr_rate = dr_rates).to(device)
 # torch.save(model.state_dict(), ".cache/test2.pt")
 
-model_state_dict = torch.load(".cache/test2.pt", map_location=device)
-model.load_state_dict(model_state_dict)
+## model_state_dict = torch.load(".cache/test2.pt", map_location=device)
+## model.load_state_dict(model_state_dict)
 
 no_decay = ['bias', 'LayerNorm.weight']
 optimizer_grouped_parameters = [

@@ -29,7 +29,7 @@ class LSTM(nn.Module):
         c_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size)).to(device)
         
         output, (hn, cn) = self.lstm(x, (h_0, c_0))
-        hn = hn[seq_num].view(-1)
+        hn = hn.view(-1)
         out = self.relu(hn)
         if self.dr_rate:
             out = self.dropout(out)

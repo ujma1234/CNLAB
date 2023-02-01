@@ -25,7 +25,7 @@ class GRU(nn.Module):
     def forward(self, x, seq_num):
         h_0 = Variable(torch.zeros(self.num_layers, x.size(0), self.hidden_size)).to(device)
         output, (hn) = self.gru(x, (h_0))
-        hn = hn[seq_num].view(-1, self.hidden_size)
+        hn = hn.view(-1, self.hidden_size)
         out = self.relu(hn)
         if self.dr_rate:
             out = self.dropout(out)

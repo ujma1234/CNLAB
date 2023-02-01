@@ -117,8 +117,8 @@ test_dataloader = torch.utils.data.DataLoader(data_test, batch_size=batch_size, 
 
 # Model Load
 bertmodel = bertmodel.to(device)
-model = ps_bertNlstm.LSBERT(hidden_size = 768, fc_size = 2048, num_layers=64, bertmodel = bertmodel, dr_rate = dr_rates).to(device)
-model.load_state_dict(checkpoint['model_state_dict'])
+model = ps_bertNlstm.LSBERT(hidden_size = 768, fc_size = 2048, num_layers=1, bertmodel = bertmodel, dr_rate = dr_rates).to(device)
+# model.load_state_dict(checkpoint['model_state_dict'])
 
 # Prepare optimizer and schedule (linear warmup and decay)
 no_decay = ['bias', 'LayerNorm.weight']
@@ -127,7 +127,7 @@ optimizer_grouped_parameters = [
     {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
 ]
 optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate)
-optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+# optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 t_total = len(train_dataloader) * num_epochs
 warmup_step = int(t_total * warmup_ratio)
 scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=warmup_step, num_training_steps=t_total)

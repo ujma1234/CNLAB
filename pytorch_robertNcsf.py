@@ -19,7 +19,6 @@ bertmodel = AutoModel.from_pretrained("klue/bert-base")
 tokenizer = AutoTokenizer.from_pretrained("klue/bert-base")
 file_num = 0
 
-# Please Modify your data amount        --here--
 dataset_train = []
 dataset_test = []
 
@@ -103,7 +102,7 @@ test_dataloader = torch.utils.data.DataLoader(data_test, batch_size=batch_size, 
 
 bertmodel = bertmodel.to(device)
         
-model = ps_bertNlstm.LSBERT(hidden_size = 768, fc_size = 2048, num_layers=64, bertmodel = bertmodel, dr_rate = dr_rates, bert_type=1).to(device)
+model = ps_bertNlstm.LSBERT(hidden_size = 768, fc_size = 2048, num_layers=1, bertmodel = bertmodel, dr_rate = dr_rates, bert_type=1).to(device)
 
 no_decay = ['bias', 'LayerNorm.weight']
 optimizer_grouped_parameters = [
@@ -145,23 +144,32 @@ def calc_accuracy(X,Y):
     return train_acc
 
 # Training and Evaluate
-for e in range(num_epochs):
-    train_acc = 0.0
-    test_acc = 0.0
-    model.train()
+checkpoint = 1
+for epoch in range(num_epochs):
+    cost = 0.0
+
     for batch_id, (x, label) in tqdm(enumerate(train_dataloader), total=len(train_dataloader)):
         predict = []
         out = model(x)
         loss = make_loss_N_Backward(out, label)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
         optimizer.step()
-        scheduler.step()
-        train_acc += calc_accuracy(out, label)
-        if batch_id % log_interval == 0:
-            print("epoch {} batch id {} loss {} train acc {}".format(e+1, batch_id+1, loss, train_acc / (batch_id+1)))
-        print("epoch {} train acc {}".format(e+1, train_acc / (batch_id+1)))
-    model.eval()
-    for batch_id, (x, label) in tqdm(enumerate(test_dataloader), total=len(test_dataloader)):
-        label = label.long().to(device)
-        test_acc += calc_accuracy(out, label)
-    print("epoch {} test acc {}".format(e+1, test_acc / (batch_id+1)))
+
+        cost += calc_accuracy(out, label)
+
+    print("epoch {} train acc {}".format(epoch, cost / (batch_id+1)))
+    
+    cost = cost / len(train_dataloader)
+
+    if (epoch + 1) % 5 == 0:
+        torch.save(
+            {
+                "model":"RoBERTa-LSTM",
+                "epoch":epoch,
+                "model_state_dict":model.state_dict(),
+                "optimizer_state_dict":optimizer.state_dict(),
+                "cost":cost,
+                "description":f"RoBERTa-LSTM 체크포인트-{checkpoint}",
+            },
+            f".cache/robertNlstm-{checkpoint}.pt",
+        )
+        checkpoint += 1
