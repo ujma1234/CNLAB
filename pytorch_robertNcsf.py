@@ -85,11 +85,11 @@ class RoBERTaDataset(Dataset):
     def __len__(self):
         return (len(self.labels))
 
-dr_rates = [0.3, 0.3, 0.3]
+dr_rates = [0.1, 0.1, 0.1]
 max_len = 64
 batch_size = 1
 warmup_ratio = 0.1
-num_epochs = 5
+num_epochs = 30
 max_grad_norm = 1
 log_interval = 200
 learning_rate =  5e-5
@@ -104,13 +104,29 @@ bertmodel = bertmodel.to(device)
         
 model = ps_bertNlstm.LSBERT(hidden_size = 768, fc_size = 2048, num_layers=1, bertmodel = bertmodel, dr_rate = dr_rates, bert_type=1).to(device)
 
-no_decay = ['bias', 'LayerNorm.weight']
-optimizer_grouped_parameters = [
-    {'params': [p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
-    {'params': [p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
-]
-optimizer = AdamW(optimizer_grouped_parameters, lr=learning_rate)
+# checkpoint = torch.load(".cache/robertNlstm-1.pt", map_location=device)
+# model.load_state_dict(checkpoint['model_state_dict'])
+
+# no_decay = ['bias', 'LayerNorm.weight']
+# optimizer_grouped_parameters = [
+#     {'params': [p for n, p in model.parameters() if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
+#     {'params': [p for n, p in model.parameters() if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+# ]
+# n=0
+# for name, child in model.named_children():
+#     if n==0:
+#       h=0
+#       for param in child.parameters():
+#         if h<=328: #이부분 숫자 조절로 fine-tuning => Roberta229: h=229
+#           param.requires_grad = False
+#         h+=1
+#     n+=1
+
+optimizer = AdamW(model.parameters(), lr=learning_rate)
 # optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+# print(checkpoint["description"])
+
 t_total = len(train_dataloader) * num_epochs
 warmup_step = int(t_total * warmup_ratio)
 scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps=warmup_step, num_training_steps=t_total)
@@ -120,6 +136,7 @@ def make_loss_N_Backward(data, label):
     losses = []
     target = [label[0][0].reshape(1), label[0][1].reshape(1), label[0][2].reshape(1), label[0][3].reshape(1)]
     input = [data[0].reshape(1,12), data[1].reshape(1,31), data[2].reshape(1,24), data[3].reshape(1,12)]
+    print(input)
     for i, j in zip(target, input) :
         loss = loss_fn(j, i)
         loss.backward(retain_graph=True)
@@ -139,37 +156,63 @@ def calc_accuracy(X,Y):
     for i, j in (torch.max(k, 1) for k in pred):
         vals += i
         indices += j
+        # print(j)
     indices = torch.tensor(indices).to(device)
-    train_acc = (indices == label).sum().data.cpu().numpy()/indices.size()[0]
+    print(indices, Y)
+    train_acc = (indices == Y).sum().data.cpu().numpy()/indices.size()[0]
     return train_acc
 
-# Training and Evaluate
-checkpoint = 1
-for epoch in range(num_epochs):
-    cost = 0.0
-
+for e in range(num_epochs):
+    train_acc = 0.0
+    test_acc = 0.0
+    model.train()
     for batch_id, (x, label) in tqdm(enumerate(train_dataloader), total=len(train_dataloader)):
         predict = []
         out = model(x)
         loss = make_loss_N_Backward(out, label)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
         optimizer.step()
+        scheduler.step()
+        train_acc += calc_accuracy(out, label)
+        if batch_id % log_interval == 0:
+            print("epoch {} batch id {} loss {} train acc {}".format(e+1, batch_id+1, loss, train_acc / (batch_id+1)))
+        print("epoch {} train acc {}".format(e+1, train_acc / (batch_id+1)))
+    model.eval()
+    for batch_id, (x, label) in tqdm(enumerate(test_dataloader), total=len(test_dataloader)):
+        label = label.long().to(device)
+        out = model(x)
+        test_acc += calc_accuracy(out, label)
+    print("epoch {} test acc {}".format(e+1, test_acc / (batch_id+1)))
+        
 
-        cost += calc_accuracy(out, label)
+# # Training and Evaluate
+# checkpoint = 1
+# model.train()
+# for epoch in range(num_epochs):
+#     cost = 0.0
 
-    print("epoch {} train acc {}".format(epoch, cost / (batch_id+1)))
+#     for batch_id, (x, label) in tqdm(enumerate(train_dataloader), total=len(train_dataloader)):
+#         predict = []
+#         out = model(x)
+#         loss = make_loss_N_Backward(out, label)
+#         optimizer.step()
+
+#         cost += calc_accuracy(out, label)
+
+#     print("epoch {} train acc  = {} ({} / {}+1)".format(epoch, cost / (batch_id+1), cost, batch_id))
     
-    cost = cost / len(train_dataloader)
+#     cost = cost / len(train_dataloader)
 
-    if (epoch + 1) % 5 == 0:
-        torch.save(
-            {
-                "model":"RoBERTa-LSTM",
-                "epoch":epoch,
-                "model_state_dict":model.state_dict(),
-                "optimizer_state_dict":optimizer.state_dict(),
-                "cost":cost,
-                "description":f"RoBERTa-LSTM 체크포인트-{checkpoint}",
-            },
-            f".cache/robertNlstm-{checkpoint}.pt",
-        )
-        checkpoint += 1
+#     if (epoch + 1) % 5 == 0:
+#         torch.save(
+#             {
+#                 "model":"RoBERTa-LSTM",
+#                 "epoch":epoch,
+#                 "model_state_dict":model.state_dict(),
+#                 "optimizer_state_dict":optimizer.state_dict(),
+#                 "cost":cost,
+#                 "description":f"RoBERTa-LSTM 체크포인트-{checkpoint}",
+#             },
+#             f".cache/robertNlstm-{checkpoint}.pt",
+#         )
+#         checkpoint += 1

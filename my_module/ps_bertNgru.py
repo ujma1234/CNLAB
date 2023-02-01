@@ -35,23 +35,21 @@ class GRUBERT(nn.Module):
         PAD_pooler = torch.zeros(1, 768, dtype = torch.float32)
         schedule_out = []
         pooler = []
-        seq_len = 0
+        for _ in range(64 - len(x)):
+            pooler += PAD_pooler.tolist()
+
         for token_ids, valid_length, segment_ids in x:
-            seq_len += 1
             token_ids = token_ids.long().to(device)
             segment_ids = segment_ids.long().to(device)
             valid_length = valid_length.to(device)
             pooler += self.bert(token_ids, valid_length, segment_ids).tolist()
 
-        for _ in range(64 - seq_len):
-            pooler += PAD_pooler
         pooler = torch.tensor(pooler, dtype=torch.float32).to(device)
         pooler = pooler.reshape(1, 64, 768)
 
-        seq_len = torch.tensor(seq_len).to(device)
+        seq_len = torch.tensor(len(x)).to(device)
 
         out = self.gru(pooler, seq_len).to(device)
-        # print(out.size())
         if self.dr_rate:
             out = self.dropout(out)
 
