@@ -8,9 +8,13 @@ device = torch.device("cuda:0")
 
 class LSBERT(nn.Module):
     ## hidden_size = 전달받는 은닉층의 크기, fc_size = 신경망 크기, num_layers = lstm_sell 크기
-    def __init__(self, hidden_size, fc_size, num_layers, bertmodel, dr_rate):
+    def __init__(self, hidden_size, fc_size, num_layers, bertmodel, dr_rate, bert_type = 0):
         super(LSBERT, self).__init__()
-        self.bert = ps_bert.BERT(bertmodel, dr_rate=dr_rate[0])
+        self.bert_type = bert_type
+        if self.bert_type == 0:
+            self.bert = ps_bert.BERT(bertmodel, dr_rate=dr_rate[0])
+        elif self.bert_type == 1:
+            self.bert = ps_bert.RoBERTa(bertmodel, dr_rate=dr_rate[0])
         self.f_lstm = ps_lstm.LSTM(num_classes = 1, input_size = 768, hidden_size = hidden_size, num_layers = num_layers, seq_length = 768, dr_rate = dr_rate[1])
         self.num_classes = 4
         self.num_layers = num_layers

@@ -31,3 +31,25 @@ class BERT(nn.Module):
         else:
             out = pooler
         return out
+
+class RoBERTa(nn.Module):
+    def __init__(self,
+                bert,
+                hidden_size = 768,
+                num_classes=2,
+                dr_rate=None,
+                params=None):
+        super(RoBERTa, self).__init__()
+        self.bert = bert
+        self.dr_rate = dr_rate
+
+        if dr_rate:
+            self.dropout = nn.Dropout(p=dr_rate)
+
+    def forward(self, input_ids, token_type_ids, attention_mask):
+        pooler = self.bert(input_ids, token_type_ids, attention_mask)['pooler_output']
+        if self.dr_rate:
+            out = self.dropout(pooler)
+        else:
+            out = pooler
+        return out
