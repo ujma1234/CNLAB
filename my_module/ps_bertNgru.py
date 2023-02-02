@@ -7,9 +7,13 @@ from my_module import ps_gru
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 class GRUBERT(nn.Module):
-    def __init__(self, hidden_size, fc_size, num_layers, bertmodel,dr_rate):
+    def __init__(self, hidden_size, fc_size, num_layers, bertmodel,dr_rate, bert_type = 0):
         super(GRUBERT, self).__init__()
-        self.bert = ps_bert.BERT(bertmodel, dr_rate[0])
+        self.bert_type = bert_type
+        if self.bert_type == 0:
+            self.bert = ps_bert.BERT(bertmodel, dr_rate[0])
+        elif self.bert_type == 1:
+            self.bert = ps_bert.RoBERTa(bertmodel, dr_rate[0])
         self.gru = ps_gru.GRU(num_classes = 1, input_size = 768, hidden_size = hidden_size, num_layers = num_layers, seq_length = 768, dr_rate = dr_rate[1])
         self.num_classes = 4
         self.num_layers = num_layers
