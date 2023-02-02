@@ -85,7 +85,7 @@ class RoBERTaDataset(Dataset):
     def __len__(self):
         return (len(self.labels))
 
-dr_rates = [0.1, 0.1, 0.1]
+dr_rates = [0.3, 0.3, 0.3]
 max_len = 64
 batch_size = 1
 warmup_ratio = 0.1
@@ -95,7 +95,7 @@ log_interval = 200
 learning_rate =  5e-5
 
 data_train = RoBERTaDataset(dataset_train, train_num, tokenizer, max_len, True, False)
-data_test = RoBERTaDataset(dataset_train, train_num, tokenizer, max_len, True, False)
+data_test = RoBERTaDataset(dataset_test, test_num, tokenizer, max_len, True, False)
 
 train_dataloader = torch.utils.data.DataLoader(data_train, batch_size=batch_size, num_workers=0)
 test_dataloader = torch.utils.data.DataLoader(data_test, batch_size=batch_size, num_workers=0)
@@ -136,7 +136,7 @@ def make_loss_N_Backward(data, label):
     losses = []
     target = [label[0][0].reshape(1), label[0][1].reshape(1), label[0][2].reshape(1), label[0][3].reshape(1)]
     input = [data[0].reshape(1,12), data[1].reshape(1,31), data[2].reshape(1,24), data[3].reshape(1,12)]
-    print(input)
+    # print(input)
     for i, j in zip(target, input) :
         loss = loss_fn(j, i)
         loss.backward(retain_graph=True)
@@ -158,61 +158,61 @@ def calc_accuracy(X,Y):
         indices += j
         # print(j)
     indices = torch.tensor(indices).to(device)
-    print(indices, Y)
     train_acc = (indices == Y).sum().data.cpu().numpy()/indices.size()[0]
     return train_acc
 
-for e in range(num_epochs):
-    train_acc = 0.0
-    test_acc = 0.0
-    model.train()
+# for e in range(num_epochs):
+#     train_acc = 0.0
+#     test_acc = 0.0
+#     model.train()
+#     for batch_id, (x, label) in tqdm(enumerate(train_dataloader), total=len(train_dataloader)):
+#         predict = []
+#         out = model(x)
+#         # print(label)
+#         loss = make_loss_N_Backward(out, label)
+#         torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+#         optimizer.step()
+#         scheduler.step()
+#         train_acc += calc_accuracy(out, label)
+#         if batch_id % log_interval == 0:
+#             print("epoch {} batch id {} loss {} train acc {}".format(e+1, batch_id+1, loss, train_acc / (batch_id+1)))
+#         print("epoch {} train acc {}".format(e+1, train_acc / (batch_id+1)))
+#     model.eval()
+#     for batch_id, (x, label) in tqdm(enumerate(test_dataloader), total=len(test_dataloader)):
+#         label = label.long().to(device)
+#         out = model(x)
+#         test_acc += calc_accuracy(out, label)
+#     print("epoch {} test acc {}".format(e+1, test_acc / (batch_id+1)))
+        
+
+# Training and Evaluate
+checkpoint = 1
+model.train()
+for epoch in range(num_epochs):
+    cost = 0.0
+
     for batch_id, (x, label) in tqdm(enumerate(train_dataloader), total=len(train_dataloader)):
         predict = []
         out = model(x)
         loss = make_loss_N_Backward(out, label)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
         optimizer.step()
-        scheduler.step()
-        train_acc += calc_accuracy(out, label)
-        if batch_id % log_interval == 0:
-            print("epoch {} batch id {} loss {} train acc {}".format(e+1, batch_id+1, loss, train_acc / (batch_id+1)))
-        print("epoch {} train acc {}".format(e+1, train_acc / (batch_id+1)))
-    model.eval()
-    for batch_id, (x, label) in tqdm(enumerate(test_dataloader), total=len(test_dataloader)):
-        label = label.long().to(device)
-        out = model(x)
-        test_acc += calc_accuracy(out, label)
-    print("epoch {} test acc {}".format(e+1, test_acc / (batch_id+1)))
-        
 
-# # Training and Evaluate
-# checkpoint = 1
-# model.train()
-# for epoch in range(num_epochs):
-#     cost = 0.0
+        cost += calc_accuracy(out, label)
 
-#     for batch_id, (x, label) in tqdm(enumerate(train_dataloader), total=len(train_dataloader)):
-#         predict = []
-#         out = model(x)
-#         loss = make_loss_N_Backward(out, label)
-#         optimizer.step()
-
-#         cost += calc_accuracy(out, label)
-
-#     print("epoch {} train acc  = {} ({} / {}+1)".format(epoch, cost / (batch_id+1), cost, batch_id))
+    print("epoch {} train acc  = {} ({} / {}+1)".format(epoch, cost / (batch_id+1), cost, batch_id))
     
-#     cost = cost / len(train_dataloader)
+    cost = cost / len(train_dataloader)
 
-#     if (epoch + 1) % 5 == 0:
-#         torch.save(
-#             {
-#                 "model":"RoBERTa-LSTM",
-#                 "epoch":epoch,
-#                 "model_state_dict":model.state_dict(),
-#                 "optimizer_state_dict":optimizer.state_dict(),
-#                 "cost":cost,
-#                 "description":f"RoBERTa-LSTM 체크포인트-{checkpoint}",
-#             },
-#             f".cache/robertNlstm-{checkpoint}.pt",
-#         )
-#         checkpoint += 1
+    if (epoch + 1) % 5 == 0:
+        torch.save(
+            {
+                "model":"RoBERTa-LSTM",
+                "epoch":epoch,
+                "model_state_dict":model.state_dict(),
+                "optimizer_state_dict":optimizer.state_dict(),
+                "cost":cost,
+                "description":f"RoBERTa-LSTM 체크포인트-{checkpoint}",
+            },
+            f".cache/robertNlstm-{checkpoint}.pt",
+        )
+        checkpoint += 1

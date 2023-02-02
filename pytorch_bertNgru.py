@@ -118,8 +118,8 @@ bertmodel = bertmodel.to(device)
 model = ps_bertNgru.GRUBERT(hidden_size = 768, fc_size = 2048, num_layers=1, bertmodel = bertmodel, dr_rate = dr_rates).to(device)
 # torch.save(model.state_dict(), ".cache/test2.pt")
 
-# model_state_dict = torch.load(".cache/test2.pt", map_location=device)
-# model.load_state_dict(model_state_dict)
+# checkpoint = torch.load(".cache/test2.pt", map_location=device)
+# model.load_state_dict(checkpoint)
 
 no_decay = ['bias', 'LayerNorm.weight']
 optimizer_grouped_parameters = [
@@ -162,6 +162,7 @@ def calc_accuracy(X,Y):
     return train_acc
 
 checkpoint = 1
+model.train()
 for epoch in range(num_epochs):
     cost = 0.0
 
@@ -190,3 +191,14 @@ for epoch in range(num_epochs):
             f".cache/bertNgru-{checkpoint}.pt",
         )
         checkpoint += 1
+# model.eval()
+# for batch_id, (x, label) in enumerate(test_dataloader):
+#     cost = 0.0
+#     predict = []
+#     out = model(x)
+#     # loss = make_loss_N_Backward(out, label)
+#     # optimizer.step()
+
+#     cost += calc_accuracy(out, label)
+
+# print("epoch {} test acc {}".format(epoch, cost / (batch_id+1)))

@@ -42,7 +42,7 @@ class LSBERT(nn.Module):
         pooler = []
         for _ in range(64 - len(x)):
             pooler += PAD_pooler.tolist()
-
+            
         for token_ids, valid_length, segment_ids in x:
             token_ids = token_ids.long().to(device)
             segment_ids = segment_ids.long().to(device)
